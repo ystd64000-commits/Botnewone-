@@ -1,69 +1,98 @@
 import os
-import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-BOT_TOKEN = "PUT_YOUR_TELEGRAM_BOT_TOKEN_HERE"  # ដាក់ Token របស់អ្នកទីនេះ
-bot = telebot.TeleBot(BOT_TOKEN)
+TOKEN = os.environ.get("TOKEN", "YOUR_BOT_TOKEN_HERE")
 
-STORY_FOLDER = "stories"  # Folder រក្សារឿង
+# Messages for other main menu options
+menu_messages = {
+    "new_stories": "នេះគឺ រឿងថ្មីៗ ...",
+    "vip_group": "សូមចូលគ្រុប VIP របស់យើង...",
+    "contact": "ទំនាក់ទំនង៖\n📞 0123456789\n📧 email@example.com"
+}
 
-def read_story_file(filename):
-    path = os.path.join(STORY_FOLDER, filename)
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
+# Stories folder
+STORY_FOLDER = "stories"
+
+# Helper function to read story file
+def read_story_file(story_key, item_index):
+    file_path = os.path.join(STORY_FOLDER, f"{story_key}_{item_index+1}.txt")
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
-    return "⚠️ មិនឃើញ File រឿងទេ!"
+    return "សុំទោស, រឿងនេះមិនមាននៅឡើយ។"
 
-def main_menu(chat_id):
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("📖 អានរឿង", callback_data="read_story"))
-    markup.add(InlineKeyboardButton("🆕 រឿងថ្មីៗ", callback_data="new_story"))
-    markup.add(InlineKeyboardButton("🌟 គ្រុប VIP", callback_data="vip"))
-    markup.add(InlineKeyboardButton("☎️ ទំនាក់ទំនង", callback_data="contact"))
-    markup.add(InlineKeyboardButton("🎮 របស់លេងថ្មីៗ", callback_data="tools"))
-    bot.send_message(chat_id, "✅ ជ្រើស Menu 👇", reply_markup=markup)
+# Start command
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("📖 អានរឿង", callback_data='story_main')],
+        [InlineKeyboardButton("🆕 រឿងថ្មីៗ", callback_data='new_stories')],
+        [InlineKeyboardButton("🌟 គ្រុប VIP", callback_data='vip_group')],
+        [InlineKeyboardButton("☎️ ទំនាក់ទំនង", callback_data='contact')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("សូមជ្រើសមីនុយខាងក្រោម👇", reply_markup=reply_markup)
 
-def story_menu(chat_id):
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("📚 រឿង1", callback_data="story1"))
-    markup.add(InlineKeyboardButton("⬅️ ត្រឡប់", callback_data="back"))
-    bot.send_message(chat_id, "📚 សូមជ្រើសរើសរឿង👇", reply_markup=markup)
+# Generate submenu for each story (7 items)
+def generate_story_keyboard(story_key, total_items=7, back_data='story_main'):
+    keyboard = []
+    for i in range(1, total_items+1):
+        keyboard.append([InlineKeyboardButton(f"រឿង{i}", callback_data=f"{story_key}_{i}")])
+    keyboard.append([InlineKeyboardButton("⬅️ ត្រឡប់ក្រោយ", callback_data=back_data)])
+    return InlineKeyboardMarkup(keyboard)
 
-def story1_menu(chat_id):
-    markup = InlineKeyboardMarkup()
-    for i in range(1, 21):
-        markup.add(InlineKeyboardButton(f"រឿង{i}", callback_data=f"story1_{i}"))
-    markup.add(InlineKeyboardButton("⬅️ ត្រឡប់", callback_data="read_story"))
-    bot.send_message(chat_id, "📌 ជ្រើសចំណងជើងរឿង👇", reply_markup=markup)
+# Handle button clicks
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-@bot.message_handler(commands=["start"])
-def start(message):
-    main_menu(message.chat.id)
+    # Main Menu → អានរឿង
+    if query.data == "story_main":
+        keyboard = [
+            [InlineKeyboardButton("រឿង1", callback_data='story1')],
+            [InlineKeyboardButton("រឿង2", callback_data='story2')],
+            [InlineKeyboardButton("រឿង3", callback_data='story3')],
+            [InlineKeyboardButton("រឿង4", callback_data='story4')],
+            [InlineKeyboardButton("រឿង5", callback_data='story5')],
+            [InlineKeyboardButton("⬅️ ត្រឡប់ក្រោយ", callback_data='back_main')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text("សូមជ្រើសរើសរឿងដែលអ្នកចង់អាន👇", reply_markup=reply_markup)
+        return
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback_handler(call):
-    data = call.data
-    chat_id = call.message.chat.id
+    # Submenu for story → 7 items
+    if query.data in ['story1','story2','story3','story4','story5']:
+        reply_markup = generate_story_keyboard(query.data, total_items=7)
+        await query.edit_message_text(f"សូមជ្រើសរើសអត្ថបទសម្រាប់ {query.data}👇", reply_markup=reply_markup)
+        return
 
-    if data == "back":
-        main_menu(chat_id)
-    elif data == "read_story":
-        story_menu(chat_id)
-    elif data == "story1":
-        story1_menu(chat_id)
-    elif data.startswith("story1_"):
-        num = data.split("_")[1]
-        content = read_story_file(f"story1_{num}.txt")
-        bot.send_message(chat_id, content)
+    # Show story content from files
+    if "_" in query.data:
+        story_key, item_index = query.data.split("_")
+        item_index = int(item_index) - 1
+        story_text = read_story_file(story_key, item_index)
+        await query.edit_message_text(story_text)
+        return
 
-    elif data == "new_story":
-        bot.send_message(chat_id, "🆕 កំពុង Update...")
-    elif data == "vip":
-        bot.send_message(chat_id, "🌟 VIP Coming Soon...")
-    elif data == "contact":
-        bot.send_message(chat_id, "☎️ Telegram: @YourContact")
-    elif data == "tools":
-        bot.send_message(chat_id, "🎮 របស់លេងថ្មីៗ Shedding soon...")
+    # Other main menu options
+    if query.data in ["new_stories","vip_group","contact"]:
+        await query.edit_message_text(menu_messages.get(query.data))
+        return
 
-print("✅ Bot Running ✅")
-bot.polling(non_stop=True)
+    # Back to main menu
+    if query.data == "back_main":
+        await start(update, context)
+        return
+
+    await query.edit_message_text("មិនមានអត្ថបទសម្រាប់ Menu នេះ")
+
+# Main function
+def main():
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button))
+    print("Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
