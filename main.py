@@ -2,21 +2,23 @@ import os
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
+# Bot Token
 TOKEN = os.environ.get("TOKEN", "YOUR_BOT_TOKEN_HERE")
 
-# Messages for other main menu options
+# Other main menu messages
 menu_messages = {
     "new_stories": "នេះគឺ រឿងថ្មីៗ ...",
     "vip_group": "សូមចូលគ្រុប VIP របស់យើង...",
-    "contact": "ទំនាក់ទំនង៖\n📞 0123456789\n📧 email@example.com"
+    "contact": "ទំនាក់ទំនង៖\n📞 0123456789\n📧 email@example.com",
+    "fun_items": "របស់លេងថ្មីៗ ..."
 }
 
 # Stories folder
 STORY_FOLDER = "stories"
 
-# Helper function to read story file
-def read_story_file(story_key, item_index):
-    file_path = os.path.join(STORY_FOLDER, f"{story_key}_{item_index+1}.txt")
+# Read story content from file
+def read_story_file(item_number):
+    file_path = os.path.join(STORY_FOLDER, f"story1_{item_number}.txt")
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
@@ -25,20 +27,21 @@ def read_story_file(story_key, item_index):
 # Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("📖 អានរឿង", callback_data='story_main')],
+        [InlineKeyboardButton("📖 អានរឿង", callback_data='menu_read')],
         [InlineKeyboardButton("🆕 រឿងថ្មីៗ", callback_data='new_stories')],
         [InlineKeyboardButton("🌟 គ្រុប VIP", callback_data='vip_group')],
-        [InlineKeyboardButton("☎️ ទំនាក់ទំនង", callback_data='contact')]
+        [InlineKeyboardButton("☎️ ទំនាក់ទំនង", callback_data='contact')],
+        [InlineKeyboardButton("🎮 របស់លេងថ្មីៗ", callback_data='fun_items')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("សូមជ្រើសមីនុយខាងក្រោម👇", reply_markup=reply_markup)
 
-# Generate submenu for each story (7 items)
-def generate_story_keyboard(story_key, total_items=7, back_data='story_main'):
+# Generate 20-item submenu for story1
+def generate_story_menu_20():
     keyboard = []
-    for i in range(1, total_items+1):
-        keyboard.append([InlineKeyboardButton(f"រឿង{i}", callback_data=f"{story_key}_{i}")])
-    keyboard.append([InlineKeyboardButton("⬅️ ត្រឡប់ក្រោយ", callback_data=back_data)])
+    for i in range(1, 21):
+        keyboard.append([InlineKeyboardButton(f"រឿង{i}", callback_data=f'story{i}')])
+    keyboard.append([InlineKeyboardButton("⬅️ ត្រឡប់ក្រោយ", callback_data='menu_read')])
     return InlineKeyboardMarkup(keyboard)
 
 # Handle button clicks
@@ -47,35 +50,30 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     # Main Menu → អានរឿង
-    if query.data == "story_main":
+    if query.data == 'menu_read':
         keyboard = [
-            [InlineKeyboardButton("រឿង1", callback_data='story1')],
-            [InlineKeyboardButton("រឿង2", callback_data='story2')],
-            [InlineKeyboardButton("រឿង3", callback_data='story3')],
-            [InlineKeyboardButton("រឿង4", callback_data='story4')],
-            [InlineKeyboardButton("រឿង5", callback_data='story5')],
+            [InlineKeyboardButton("រឿង1", callback_data='story_main')],
             [InlineKeyboardButton("⬅️ ត្រឡប់ក្រោយ", callback_data='back_main')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text("សូមជ្រើសរើសរឿងដែលអ្នកចង់អាន👇", reply_markup=reply_markup)
+        await query.edit_message_text("សូមជ្រើសរើសរឿង:", reply_markup=reply_markup)
         return
 
-    # Submenu for story → 7 items
-    if query.data in ['story1','story2','story3','story4','story5']:
-        reply_markup = generate_story_keyboard(query.data, total_items=7)
-        await query.edit_message_text(f"សូមជ្រើសរើសអត្ថបទសម្រាប់ {query.data}👇", reply_markup=reply_markup)
+    # Submenu 20 items for រឿង1
+    if query.data == 'story_main':
+        reply_markup = generate_story_menu_20()
+        await query.edit_message_text("សូមជ្រើសរើសរឿងចំណាត់ថ្នាក់ 1-20:", reply_markup=reply_markup)
         return
 
-    # Show story content from files
-    if "_" in query.data:
-        story_key, item_index = query.data.split("_")
-        item_index = int(item_index) - 1
-        story_text = read_story_file(story_key, item_index)
+    # Show story content from file
+    if query.data.startswith('story'):
+        item_number = int(query.data.replace('story',''))
+        story_text = read_story_file(item_number)
         await query.edit_message_text(story_text)
         return
 
     # Other main menu options
-    if query.data in ["new_stories","vip_group","contact"]:
+    if query.data in menu_messages:
         await query.edit_message_text(menu_messages.get(query.data))
         return
 
